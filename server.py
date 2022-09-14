@@ -32,7 +32,54 @@ class MyWebServer(socketserver.BaseRequestHandler):
     def handle(self):
         self.data = self.request.recv(1024).strip()
         print ("Got a request of: %s\n" % self.data)
-        self.request.sendall(bytearray("OK",'utf-8'))
+        self.data = self.data.decode('utf-8').lower()
+        lines = self.data.split("\\n")
+        self.data = lines[0].split(" ")
+        self.data[1] = self.data[1].replace("../", '')
+
+        if self.data[0] != "get":
+            self.request.sendall(bytearray("HTTP/1.1 405 Method Not Found\n\n", 'utf-8'))
+            return
+        
+        if self.data[1][-1]== "/":
+            try:
+                with open("www/{}index.html".format(self.data[1]), "r") as webpage:
+                    self.request.sendall(bytearray("HTTP/1.1 200 OK\ncontent-type: text/html\n\n{}".format(webpage.read()), 'utf-8'))
+                return
+
+            except FileNotFoundError as e:
+                self.request.sendall(bytearray("HTTP/1.1 404 Not Found\n\n", 'utf-8'))
+                print(e)
+                return
+            except Exception as e:
+                self.request.sendall(bytearray("HTTP/1.1 404 Not Found\n\n", 'utf-8'))
+                print(e)
+                return
+                
+        try: 
+            request = self.data[1]
+            with open("www{}".format(request), "r") as webpage:
+                if ".html" in self.data[1]:
+                    type = "html"
+                elif ".css" in self.data[1]:
+                    type = "css"
+                else:
+                    type = ""
+                self.request.sendall(bytearray("HTTP/1.1 200 OK\ncontent-type: text/{}\n\n{}".format(type, webpage.read()),'utf-8'))
+            return
+
+        except FileNotFoundError as e:
+            self.request.sendall(bytearray("HTTP/1.1 404 Not Found\n\n", 'utf-8'))
+            print(e)
+            return
+        except IsADirectoryError as e2:
+            print(e2)
+            self.request.sendall(bytearray("HTTP/1.1 301 Moved Permanently\nLocation:http://{}:8080{}/\n\n".format(self.client_address[0], request), 'utf-8'))
+            return
+
+        self.request.sendall(bytearray("HTTP/1.1 404 Not Found\n\n", 'utf-8'))
+        
+            
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
